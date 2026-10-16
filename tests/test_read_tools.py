@@ -25,7 +25,9 @@ def test_ac1_my_queue():
     assert items, "caller has no items; assign one in the Domino UI"
     for i in items:
         assert i["bundle_name"] and i["policy"] and i["stage"] and i["pending_on_you"]
-        assert "url" in i  # None only when DOMINO_HOST is unset in a workspace
+        if os.environ.get("DOMINO_HOST"):
+            assert i["url"].startswith(os.environ["DOMINO_HOST"] + "/")
+            assert "/governance/bundle/" in i["url"] or i["url"].endswith("/governance/bundles")  # orphaned-project fallback
 
 
 @live
@@ -68,3 +70,34 @@ def test_ac7_invalid_key():
     host = os.environ["DOMINO_API_HOST"]
     r = call("list_my_governance_items", env={"DOMINO_API_KEY": "bad", "DOMINO_HOST": host})
     assert "error" in r and "DOMINO_API_KEY" in r["error"]
+
+
+@live
+@pytest.mark.skipif(not os.environ.get("DOMINO_TEST_BUNDLE"), reason="needs DOMINO_TEST_BUNDLE")
+def test_queue_shows_review_approval_as_awaiting_decision():
+    items = {i["bundle_id"]: i for i in call("list_my_governance_items")["items"]}
+    mine = items[os.environ["DOMINO_TEST_BUNDLE"]]
+    assert any("awaiting your decision" in p for p in mine["pending_on_you"])
+
+
+@live
+def test_pending_submission_is_not_a_decision():
+    """PendingSubmission approvals must not be reported as awaiting the user's decision."""
+    for i in call("list_my_governance_items")["items"]:
+        for p in i["pending_on_you"]:
+            if "awaiting your decision" in p:
+                b = call("get_bundle", {"bundle": i["bundle_id"]})
+                assert any(a["status"] == "PendingReview" for a in b["approvals"])
+
+
+@live
+@pytest.mark.skipif(not os.environ.get("DOMINO_HOST"), reason="needs DOMINO_HOST for links")
+def test_attachment_links_present():
+    from conftest import call as c
+    import httpx
+    tok = httpx.get("http://localhost:8899/access-token").text.strip()
+    bs = httpx.get(os.environ["DOMINO_API_HOST"] + "/api/governance/v1/bundles", params={"limit": 200},
+                   headers={"Authorization": f"Bearer {tok}"}).json()["data"]
+    withatt = next(x for x in bs if x.get("attachments"))
+    got = c("get_bundle", {"bundle": withatt["id"]})
+    assert got["attachments"] and all(a["url"].startswith(os.environ["DOMINO_HOST"]) for a in got["attachments"])
