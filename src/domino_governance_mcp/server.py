@@ -134,6 +134,7 @@ def create_finding(bundle: str, title: str, description: str, severity: str,
     current user. Needs a bundle ID or name (from list_my_governance_items), a short title, a
     description, and severity S0-S3 (S0 most severe; critical/high/medium/low also accepted).
     `approval` optionally ties it to one approval by name or ID (from get_bundle).
+    `severity` is S0-S3 (S0 most severe) or critical/high/medium/low.
     WRITE TOOL: with confirm=false (default) it only returns a preview and changes nothing.
     Show the preview to the user and call again with confirm=true only after they agree."""
     c = client()
@@ -192,16 +193,18 @@ def _pick_approval(c: Client, full: dict, ref: str | None, strict: bool = False)
 def submit_approval(bundle: str, decision: str, comment: str = "", approval: str | None = None,
                     severity: str = "S2", confirm: bool = False) -> dict:
     """Record the current user's decision on an approval that is waiting for them in Domino.
-    `bundle` is a bundle ID or name; `approval` (name or ID, from get_bundle) is only needed if
-    several approvals wait on the user. `decision` is one of:
+    `bundle` is a bundle ID or name. `approval` (name or ID, from get_bundle) is optional: if several
+    approvals wait on the user and it is omitted, the tool returns an error listing them. `decision` is one of:
       approve              - approve it
-      conditional_approve  - approve subject to a finding; `comment` is required and becomes a finding
-      request_changes      - send it back to the submitter; `comment` is required and becomes a finding
+      conditional_approve  - approve subject to a condition; `comment` is REQUIRED (the tool errors without it)
+      request_changes      - send it back to the submitter (also what "reject" means); `comment` is REQUIRED
     NOTE: Domino's approval API stores who decided and when, but has no comment field, so for
     approve the comment is not stored. For the other two, the comment is saved as a finding
     (tagged, severity from `severity`, default S2) so the reason is visible in Domino.
     WRITE TOOL, and a human decision: never call with confirm=true unless the user has explicitly
-    chosen this decision in this conversation. With confirm=false (default) it only previews."""
+    chosen this decision for THIS bundle in this conversation. One decision per call: never approve
+    several bundles on a single blanket instruction ("approve everything"); preview and confirm each
+    one separately. With confirm=false (default) it only previews."""
     if not approvals_enabled():
         return {"error": "Recording approvals from Copilot is disabled on this machine "
                          "(DOMINO_GOV_ALLOW_APPROVALS=false). Use the Domino UI."}
