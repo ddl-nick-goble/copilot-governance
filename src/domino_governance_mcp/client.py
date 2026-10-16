@@ -45,8 +45,12 @@ class Client:
                 continue
             break
         if r.status_code in (401, 403):
-            env = "DOMINO_API_KEY" if self.creds.mode == "pat" else "the workspace token"
-            raise AuthError(f"Domino rejected the credential ({r.status_code}). Check {env}; it may be invalid or expired.")
+            if self.creds.mode == "pat":
+                raise AuthError(
+                    f"Domino rejected DOMINO_API_KEY ({r.status_code}). It must be a Personal Access Token "
+                    "(Domino: Account > Account settings > Personal Access Token > Generate new Token); "
+                    "legacy API keys are not accepted. Check it has not expired and that DOMINO_HOST is correct.")
+            raise AuthError(f"Domino rejected the workspace token ({r.status_code}).")
         if r.status_code == 404:
             raise DominoError(f"Not found: {path}")
         if not r.is_success:

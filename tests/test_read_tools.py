@@ -69,7 +69,7 @@ def test_ac7_missing_host():
 def test_ac7_invalid_key():
     host = os.environ["DOMINO_API_HOST"]
     r = call("list_my_governance_items", env={"DOMINO_API_KEY": "bad", "DOMINO_HOST": host})
-    assert "error" in r and "DOMINO_API_KEY" in r["error"]
+    assert "DOMINO_API_KEY" in r["error"] and "Personal Access Token" in r["error"]
 
 
 @live
@@ -101,3 +101,14 @@ def test_attachment_links_present():
     withatt = next(x for x in bs if x.get("attachments"))
     got = c("get_bundle", {"bundle": withatt["id"]})
     assert got["attachments"] and all(a["url"].startswith(os.environ["DOMINO_HOST"]) for a in got["attachments"])
+
+
+@live
+def test_laptop_mode_pat_over_public_host():
+    """Emulates a laptop: no sidecar/workspace vars, Bearer credential in DOMINO_API_KEY, public host."""
+    import httpx
+    tok = httpx.get("http://localhost:8899/access-token").text.strip()
+    env = {"DOMINO_HOST": os.environ["DOMINO_HOST"], "DOMINO_API_KEY": tok, "DOMINO_API_PROXY": "http://127.0.0.1:1"}
+    me = call("whoami", env=env)
+    assert me["auth_mode"] == "pat" and me["host"] == os.environ["DOMINO_HOST"] and me["userName"]
+    assert call("list_my_governance_items", env=env)["items"]

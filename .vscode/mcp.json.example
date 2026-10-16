@@ -1,0 +1,16 @@
+{
+  "inputs": [
+    { "id": "domino_api_key", "type": "promptString", "description": "Domino API key (Personal Access Token)", "password": true }
+  ],
+  "servers": {
+    "domino-governance": {
+      "type": "stdio",
+      "command": "domino-governance-mcp",
+      "env": {
+        "DOMINO_HOST": "https://YOUR-DOMINO-HOST",
+        "DOMINO_API_KEY": "${input:domino_api_key}",
+        "DOMINO_GOV_ALLOW_APPROVALS": "true"
+      }
+    }
+  }
+}

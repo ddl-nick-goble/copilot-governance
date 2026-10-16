@@ -1,4 +1,7 @@
-# Domino Governance public API map (T-1 recon)
+# Domino Governance public API map
+
+> **Updated after build.** The first section is the original T-1 recon; the section below supersedes its
+> gaps. The OpenAPI spec is public at `/api/governance/swagger/doc.json` (the Swagger UI is at `/governance/swagger/index`).
 
 Recon date: 2026-10-16. Instance: demo workspace host (`$DOMINO_API_HOST`, in-workspace
 auth via `localhost:8899/access-token`). Base path `/api/governance/v1`.
@@ -70,3 +73,38 @@ No public OpenAPI spec was found, so write schemas must come from the skill, the
 | GET | /api/governance/v1/bundles/{id}/findings | list_findings, get_bundle |
 | POST | /api/governance/v1/findings | create_finding (unverified) |
 | POST | /api/governance/v1/rpc/publish-approval-event | submit_approval (unverified) |
+
+## Final state after build (supersedes the gaps above)
+
+| Item | Result |
+|---|---|
+| Auth | `Authorization: Bearer <PAT>` against the public host works. A legacy API key as Bearer returns 403; it only works as `X-Domino-Api-Key` (deprecated, not used). |
+| `create_finding` | `POST /findings` works. Required: `bundleId, policyVersionId, name, severity (S0-S3), assignee{id,name}, approver{id,name}`. `approvalId` is optional (G1 resolved). |
+| `submit_approval` | `POST /rpc/publish-approval-event` works. Needs `bundleId, policyId, projectId, approvalId, eventType`. |
+| Approval comment | **No field.** `meta` carries only evidence or `requiredFindings`. Domino records `updatedBy` and `updatedAt`. |
+| Valid transitions | `PendingReview`: Approved / ConditionallyApproved / `RequestCancelled` (back to PendingSubmission). `RequestRejected` is not valid from `PendingReview`. `PendingSubmission` cannot be decided. |
+| `conditional_approve` | Requires `requiredFindings` (finding IDs), so the comment becomes a finding. |
+| "Awaiting decision" | Status `PendingReview` (not `PendingSubmission`). |
+| `openFindingsCount` | Did not change after creating a finding. Not trusted; open findings are computed from `/bundles/{id}/findings`. |
+| Org approvers | Approver `id` is the org's user id from `GET /api/organizations/v1/organizations` (`members[].userId`), not the id in `/v4/users/self.organizations`. |
+| Bundle detail | `GET /bundles/{id}` includes `attachments` (key omitted when empty). |
+
+### UI link routes (from the Domino frontend router; the SPA returns 200 for any path, so click-test)
+
+| Link | Route |
+|---|---|
+| Bundle | `/u/{owner}/{project}/governance/bundle/{id}/policy/{policyId}` (+ `/findings`, `/finding/{fid}`, `/attachments`, `/history`, `/evidence`) |
+| Model version | `/model-registry/{name}/model-card?version={n}` |
+| Endpoint | `/endpoints/{endpointId}` |
+| Dataset file | `/data/dataset/view/{datasetId}/{snapshotId}/{filename}` |
+| Project file | `/u/{owner}/{project}/view/{filename}` |
+| Orphaned bundle (project deleted) | falls back to `/governance/bundles` |
+
+### Additional endpoints used
+
+| Method | Path | Used by |
+|---|---|---|
+| GET | /api/organizations/v1/organizations | queue, approver checks |
+| GET | /api/governance/v1/policy-overviews, `/attachment-overviews` | seed script |
+| POST | /api/governance/v1/bundles, `/bundles/{id}/attachments` | seed script |
+| PUT | /api/governance/v1/findings/{id} | tests (close test findings) |
